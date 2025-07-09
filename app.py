@@ -23,36 +23,63 @@ class Switch(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     brand = db.Column(db.String(50), nullable=False)
     model = db.Column(db.String(100), nullable=False)
+    sku = db.Column(db.String(100))
     port_count = db.Column(db.Integer, nullable=False)
+    copper_1g = db.Column(db.Integer, default=0)
+    copper_2_5g = db.Column(db.Integer, default=0)
+    copper_10g = db.Column(db.Integer, default=0)
+    sfp_1g = db.Column(db.Integer, default=0)
+    sfp_plus_10g = db.Column(db.Integer, default=0)
+    sfp28_25g = db.Column(db.Integer, default=0)
+    qsfp28_100g = db.Column(db.Integer, default=0)
+    poe_type = db.Column(db.String(50))
     poe_ports = db.Column(db.Integer, default=0)
     poe_plus_ports = db.Column(db.Integer, default=0)
     poe_plus_plus_ports = db.Column(db.Integer, default=0)
     total_poe_watts = db.Column(db.Integer, default=0)
-    sfp_ports = db.Column(db.Integer, default=0)
     max_speed_gbps = db.Column(db.Float, nullable=False)
     stacking_support = db.Column(db.Boolean, default=False)
+    use_case = db.Column(db.String(100))
+    management = db.Column(db.String(200))
+    igmp_support = db.Column(db.Boolean, default=False)
     port_types = db.Column(db.String(200))  # JSON string
     connector_types = db.Column(db.String(200))  # JSON string
     price = db.Column(db.Float)
     availability = db.Column(db.String(50))
+    
+    # Legacy compatibility - keep these for backwards compatibility
+    sfp_ports = db.Column(db.Integer, default=0)
     
     def to_dict(self):
         return {
             'id': self.id,
             'brand': self.brand,
             'model': self.model,
+            'sku': self.sku,
             'port_count': self.port_count,
+            'copper_1g': self.copper_1g,
+            'copper_2_5g': self.copper_2_5g,
+            'copper_10g': self.copper_10g,
+            'sfp_1g': self.sfp_1g,
+            'sfp_plus_10g': self.sfp_plus_10g,
+            'sfp28_25g': self.sfp28_25g,
+            'qsfp28_100g': self.qsfp28_100g,
+            'poe_type': self.poe_type,
             'poe_ports': self.poe_ports,
             'poe_plus_ports': self.poe_plus_ports,
             'poe_plus_plus_ports': self.poe_plus_plus_ports,
             'total_poe_watts': self.total_poe_watts,
-            'sfp_ports': self.sfp_ports,
             'max_speed_gbps': self.max_speed_gbps,
             'stacking_support': self.stacking_support,
+            'use_case': self.use_case,
+            'management': self.management,
+            'igmp_support': self.igmp_support,
             'port_types': json.loads(self.port_types) if self.port_types else [],
             'connector_types': json.loads(self.connector_types) if self.connector_types else [],
             'price': self.price,
-            'availability': self.availability
+            'availability': self.availability,
+            # Legacy compatibility
+            'sfp_ports': self.sfp_ports
         }
 
 class VLANConfiguration(db.Model):
@@ -519,6 +546,89 @@ def get_brands():
     brands = db.session.query(Switch.brand).distinct().all()
     return jsonify([brand[0] for brand in brands])
 
+@app.route('/api/switches/search-text', methods=['POST'])
+def search_switches_text():
+    """
+    Search switches by text query (brand, model, SKU, or specifications)
+    """
+    data = request.get_json()
+    query_text = data.get('query', '').strip()
+    
+    if not query_text:
+        return jsonify({'error': 'Query parameter is required'}), 400
+    
+    # Build search query
+    search_query = Switch.query.filter(
+        db.or_(
+            Switch.brand.ilike(f'%{query_text}%'),
+            Switch.model.ilike(f'%{query_text}%'),
+            Switch.sku.ilike(f'%{query_text}%'),
+            Switch.use_case.ilike(f'%{query_text}%'),
+            Switch.poe_type.ilike(f'%{query_text}%'),
+            Switch.management.ilike(f'%{query_text}%'),
+            Switch.port_types.ilike(f'%{query_text}%'),
+            Switch.connector_types.ilike(f'%{query_text}%')
+        )
+    )
+    
+    # Optional filters
+    if data.get('brand'):
+        search_query = search_query.filter(Switch.brand == data['brand'])
+    
+    if data.get('min_ports'):
+        search_query = search_query.filter(Switch.port_count >= data['min_ports'])
+    
+    if data.get('max_ports'):
+        search_query = search_query.filter(Switch.port_count <= data['max_ports'])
+        
+    if data.get('poe_required'):
+        search_query = search_query.filter(Switch.poe_ports > 0)
+    
+    if data.get('stacking_required'):
+        search_query = search_query.filter(Switch.stacking_support == True)
+    
+    # Execute search
+    results = search_query.limit(50).all()  # Limit results to prevent overload
+    
+    return jsonify({
+        'switches': [switch.to_dict() for switch in results],
+        'total_found': len(results),
+        'query': query_text
+    })
+
+@app.route('/api/switches/quick-search', methods=['GET'])
+def quick_search():
+    """
+    Quick search for autocomplete suggestions
+    """
+    query_text = request.args.get('q', '').strip()
+    
+    if not query_text or len(query_text) < 2:
+        return jsonify([])
+    
+    # Search for matches in brand, model, and SKU
+    results = Switch.query.filter(
+        db.or_(
+            Switch.brand.ilike(f'%{query_text}%'),
+            Switch.model.ilike(f'%{query_text}%'),
+            Switch.sku.ilike(f'%{query_text}%')
+        )
+    ).limit(10).all()
+    
+    # Format for autocomplete
+    suggestions = []
+    for switch in results:
+        suggestions.append({
+            'id': switch.id,
+            'label': f'{switch.brand} {switch.model}',
+            'value': f'{switch.brand} {switch.model}',
+            'sku': switch.sku,
+            'brand': switch.brand,
+            'model': switch.model
+        })
+    
+    return jsonify(suggestions)
+
 @app.route('/api/sync/history', methods=['GET'])
 def get_sync_history():
     """
@@ -557,23 +667,40 @@ def load_csv_data():
     
     switches = []
     with open(csv_path, 'r', newline='', encoding='utf-8') as csvfile:
-        reader = csv.DictReader(csvfile)
+        reader = csv.DictReader(csvfile, delimiter='\t')  # Changed to tab delimiter
         for row in reader:
+            # Skip empty rows
+            if not row.get('brand') or not row.get('model'):
+                continue
+                
             switch = Switch(
                 brand=row['brand'],
                 model=row['model'],
-                port_count=int(row['port_count']),
-                poe_ports=int(row['poe_ports']),
-                poe_plus_ports=int(row['poe_plus_ports']),
-                poe_plus_plus_ports=int(row['poe_plus_plus_ports']),
-                total_poe_watts=int(row['total_poe_watts']),
-                sfp_ports=int(row['sfp_ports']),
-                max_speed_gbps=float(row['max_speed_gbps']),
-                stacking_support=row['stacking_support'].lower() == 'true',
-                port_types=row['port_types'],
-                connector_types=row['connector_types'],
-                price=float(row['price']),
-                availability=row['availability']
+                sku=row.get('sku', ''),
+                port_count=int(row['port_count']) if row.get('port_count') else 0,
+                copper_1g=int(row['copper_1g']) if row.get('copper_1g') else 0,
+                copper_2_5g=int(row['copper_2_5g']) if row.get('copper_2_5g') else 0,
+                copper_10g=int(row['copper_10g']) if row.get('copper_10g') else 0,
+                sfp_1g=int(row['sfp_1g']) if row.get('sfp_1g') else 0,
+                sfp_plus_10g=int(row['sfp_plus_10g']) if row.get('sfp_plus_10g') else 0,
+                sfp28_25g=int(row['sfp28_25g']) if row.get('sfp28_25g') else 0,
+                qsfp28_100g=int(row['qsfp28_100g']) if row.get('qsfp28_100g') else 0,
+                poe_type=row.get('poe_type', 'None'),
+                poe_ports=int(row['poe_ports']) if row.get('poe_ports') else 0,
+                poe_plus_ports=int(row['poe_plus_ports']) if row.get('poe_plus_ports') else 0,
+                poe_plus_plus_ports=int(row['poe_plus_plus_ports']) if row.get('poe_plus_plus_ports') else 0,
+                total_poe_watts=int(row['total_poe_watts']) if row.get('total_poe_watts') else 0,
+                max_speed_gbps=float(row['max_speed_gbps']) if row.get('max_speed_gbps') else 1.0,
+                stacking_support=row.get('stacking_support', '').upper() == 'TRUE',
+                use_case=row.get('use_case', ''),
+                management=row.get('management', ''),
+                igmp_support=row.get('igmp_support', '').upper() == 'TRUE',
+                port_types=row.get('port_types', '[]'),
+                connector_types=row.get('connector_types', '[]'),
+                price=float(row['price']) if row.get('price') and row['price'] != '' else None,
+                availability=row.get('availability', 'TBD'),
+                # Legacy compatibility
+                sfp_ports=int(row['sfp_1g']) + int(row['sfp_plus_10g']) + int(row['sfp28_25g']) if row.get('sfp_1g') and row.get('sfp_plus_10g') and row.get('sfp28_25g') else 0
             )
             switches.append(switch)
     return switches

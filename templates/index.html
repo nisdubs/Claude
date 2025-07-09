@@ -42,6 +42,45 @@
         .vlan-selector {
             margin: 10px 0;
         }
+        .search-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .search-suggestion {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f1f1;
+        }
+        .search-suggestion:hover {
+            background-color: #f8f9fa;
+        }
+        .search-suggestion:last-child {
+            border-bottom: none;
+        }
+        .search-suggestion .brand {
+            font-weight: bold;
+            color: #007bff;
+        }
+        .search-suggestion .model {
+            color: #6c757d;
+        }
+        .search-suggestion .sku {
+            font-size: 0.8em;
+            color: #6c757d;
+        }
+        .search-input-container {
+            position: relative;
+        }
     </style>
 </head>
 <body>
@@ -281,6 +320,51 @@
             </div>
 
             <div class="col-md-8">
+                <!-- Search Section -->
+                <div class="results-section">
+                    <h3>Search Switches</h3>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="search-input-container">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="searchInput" placeholder="Search by brand, model, SKU, or specifications..." onkeyup="handleSearchKeyup(event)" onfocus="showSuggestions()" onblur="hideSuggestions()">
+                                    <button class="btn btn-primary" onclick="performTextSearch()">Search</button>
+                                </div>
+                                <div id="searchSuggestions" class="search-suggestions" style="display:none;"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="searchPoeRequired">
+                                <label class="form-check-label" for="searchPoeRequired">PoE Required</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="searchStackingRequired">
+                                <label class="form-check-label" for="searchStackingRequired">Stacking Required</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-3">
+                            <select class="form-select form-select-sm" id="searchBrand">
+                                <option value="">Any Brand</option>
+                                <option value="NetGear">NetGear</option>
+                                <option value="Cisco">Cisco</option>
+                                <option value="HP">HP</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <input type="number" class="form-control form-control-sm" id="searchMinPorts" placeholder="Min Ports">
+                        </div>
+                        <div class="col-md-3">
+                            <input type="number" class="form-control form-control-sm" id="searchMaxPorts" placeholder="Max Ports">
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="clearSearch()">Clear</button>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Data Sync Section -->
                 <div class="results-section">
                     <h3>Data Management</h3>
@@ -519,6 +603,179 @@
             .catch(error => {
                 console.error('Error loading sync status:', error);
             });
+        }
+
+        // Search functionality
+        let searchTimeout;
+        let currentSuggestions = [];
+
+        function handleSearchKeyup(event) {
+            const query = event.target.value.trim();
+            
+            if (event.key === 'Enter') {
+                performTextSearch();
+                return;
+            }
+            
+            if (query.length >= 2) {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    fetchSuggestions(query);
+                }, 300);
+            } else {
+                hideSuggestions();
+            }
+        }
+
+        function fetchSuggestions(query) {
+            fetch(`/api/switches/quick-search?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(suggestions => {
+                    currentSuggestions = suggestions;
+                    displaySuggestions(suggestions);
+                })
+                .catch(error => {
+                    console.error('Error fetching suggestions:', error);
+                });
+        }
+
+        function displaySuggestions(suggestions) {
+            const suggestionsDiv = document.getElementById('searchSuggestions');
+            
+            if (suggestions.length === 0) {
+                suggestionsDiv.style.display = 'none';
+                return;
+            }
+            
+            let html = '';
+            suggestions.forEach(suggestion => {
+                html += `
+                    <div class="search-suggestion" onclick="selectSuggestion('${suggestion.value}', ${suggestion.id})">
+                        <span class="brand">${suggestion.brand}</span>
+                        <span class="model">${suggestion.model}</span>
+                        ${suggestion.sku ? `<br><span class="sku">SKU: ${suggestion.sku}</span>` : ''}
+                    </div>
+                `;
+            });
+            
+            suggestionsDiv.innerHTML = html;
+            suggestionsDiv.style.display = 'block';
+        }
+
+        function selectSuggestion(value, switchId) {
+            document.getElementById('searchInput').value = value;
+            hideSuggestions();
+            performTextSearch();
+        }
+
+        function showSuggestions() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (query.length >= 2 && currentSuggestions.length > 0) {
+                document.getElementById('searchSuggestions').style.display = 'block';
+            }
+        }
+
+        function hideSuggestions() {
+            setTimeout(() => {
+                document.getElementById('searchSuggestions').style.display = 'none';
+            }, 200);
+        }
+
+        function performTextSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            
+            if (!query) {
+                alert('Please enter a search term');
+                return;
+            }
+            
+            const searchData = {
+                query: query,
+                brand: document.getElementById('searchBrand').value,
+                min_ports: document.getElementById('searchMinPorts').value ? parseInt(document.getElementById('searchMinPorts').value) : null,
+                max_ports: document.getElementById('searchMaxPorts').value ? parseInt(document.getElementById('searchMaxPorts').value) : null,
+                poe_required: document.getElementById('searchPoeRequired').checked,
+                stacking_required: document.getElementById('searchStackingRequired').checked
+            };
+            
+            fetch('/api/switches/search-text', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(searchData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    displaySearchResults(data);
+                }
+            })
+            .catch(error => {
+                console.error('Error performing search:', error);
+                alert('Error performing search');
+            });
+        }
+
+        function displaySearchResults(data) {
+            const resultsDiv = document.getElementById('searchResults');
+            
+            if (data.switches.length === 0) {
+                resultsDiv.innerHTML = `<p class="text-warning">No switches found matching your search for "${data.query}".</p>`;
+                return;
+            }
+            
+            let html = `<p class="text-info">Found ${data.total_found} switches matching "${data.query}"</p>`;
+            html += '<div class="row">';
+            
+            data.switches.forEach(switch_ => {
+                html += `
+                    <div class="col-md-6 mb-3">
+                        <div class="switch-card">
+                            <h5>${switch_.brand} ${switch_.model}</h5>
+                            ${switch_.sku ? `<p><strong>SKU:</strong> ${switch_.sku}</p>` : ''}
+                            <p><strong>Ports:</strong> ${switch_.port_count}</p>
+                            <div class="row">
+                                <div class="col-6">
+                                    <small><strong>1G Copper:</strong> ${switch_.copper_1g || 0}</small><br>
+                                    <small><strong>2.5G Copper:</strong> ${switch_.copper_2_5g || 0}</small><br>
+                                    <small><strong>10G Copper:</strong> ${switch_.copper_10g || 0}</small>
+                                </div>
+                                <div class="col-6">
+                                    <small><strong>1G SFP:</strong> ${switch_.sfp_1g || 0}</small><br>
+                                    <small><strong>10G SFP+:</strong> ${switch_.sfp_plus_10g || 0}</small><br>
+                                    <small><strong>25G SFP28:</strong> ${switch_.sfp28_25g || 0}</small>
+                                </div>
+                            </div>
+                            ${switch_.poe_type !== 'None' ? `<p><strong>PoE Type:</strong> ${switch_.poe_type}</p>` : ''}
+                            ${switch_.poe_ports > 0 ? `<p><strong>PoE Ports:</strong> ${switch_.poe_ports} (${switch_.poe_plus_ports} PoE+, ${switch_.poe_plus_plus_ports} PoE++)</p>` : ''}
+                            <p><strong>Max Speed:</strong> ${switch_.max_speed_gbps} Gbps</p>
+                            <p><strong>Stacking:</strong> ${switch_.stacking_support ? 'Yes' : 'No'}</p>
+                            ${switch_.use_case ? `<p><strong>Use Case:</strong> ${switch_.use_case}</p>` : ''}
+                            ${switch_.price ? `<p><strong>Price:</strong> $${switch_.price}</p>` : ''}
+                            <button class="btn btn-sm btn-outline-primary" onclick="selectSwitch(${switch_.id})">
+                                Select for Availability Check
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            resultsDiv.innerHTML = html;
+        }
+
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchBrand').value = '';
+            document.getElementById('searchMinPorts').value = '';
+            document.getElementById('searchMaxPorts').value = '';
+            document.getElementById('searchPoeRequired').checked = false;
+            document.getElementById('searchStackingRequired').checked = false;
+            document.getElementById('searchResults').innerHTML = '<p class="text-muted">Configure your requirements and click "Find Switches" to see results.</p>';
+            hideSuggestions();
         }
 
         // Load sync status on page load
