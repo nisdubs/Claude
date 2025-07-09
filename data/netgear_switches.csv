@@ -1,0 +1,16 @@
+brand,model,port_count,poe_ports,poe_plus_ports,poe_plus_plus_ports,total_poe_watts,sfp_ports,max_speed_gbps,stacking_support,port_types,connector_types,price,availability
+NetGear,GS108T,8,0,0,0,0,0,1.0,false,"[""copper""]","[""RJ45""]",89.99,In Stock
+NetGear,GS116,16,0,0,0,0,0,1.0,false,"[""copper""]","[""RJ45""]",129.99,In Stock
+NetGear,GS724T,24,0,0,0,0,0,1.0,false,"[""copper""]","[""RJ45""]",279.99,In Stock
+NetGear,GS728TP,24,24,24,0,380,0,1.0,false,"[""copper""]","[""RJ45""]",449.99,In Stock
+NetGear,GS728TPP,24,24,24,8,480,0,1.0,false,"[""copper""]","[""RJ45""]",599.99,In Stock
+NetGear,GS748T,48,0,0,0,0,0,1.0,false,"[""copper""]","[""RJ45""]",399.99,In Stock
+NetGear,GS748TP,48,48,48,0,760,0,1.0,false,"[""copper""]","[""RJ45""]",799.99,In Stock
+NetGear,XS728T,24,0,0,0,0,4,10.0,true,"[""copper"",""fiber""]","[""RJ45"",""SFP+""]",899.99,In Stock
+NetGear,XS748T,48,0,0,0,0,4,10.0,true,"[""copper"",""fiber""]","[""RJ45"",""SFP+""]",1299.99,In Stock
+NetGear,M4250-26G4XF,24,0,0,0,0,4,10.0,true,"[""copper"",""fiber""]","[""RJ45"",""SFP+""]",1599.99,In Stock
+NetGear,M4250-40G8XF,40,0,0,0,0,8,10.0,true,"[""copper"",""fiber""]","[""RJ45"",""SFP+""]",2199.99,In Stock
+NetGear,GS110TP,8,8,8,0,55,0,1.0,false,"[""copper""]","[""RJ45""]",99.99,In Stock
+NetGear,GS316P,16,15,15,0,183,0,1.0,false,"[""copper""]","[""RJ45""]",149.99,In Stock
+NetGear,GS324P,24,24,24,0,380,0,1.0,false,"[""copper""]","[""RJ45""]",199.99,In Stock
+NetGear,GS348P,48,48,48,0,760,0,1.0,false,"[""copper""]","[""RJ45""]",349.99,In Stock
